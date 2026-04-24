@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <!-- 核心设置：完全适配原生手机屏幕尺寸，允许全屏，去除缩放 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <!-- 针对 iOS Safari 添加到桌面的全屏支持 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="手机模拟">
+    
+    <!-- 针对 Android Chrome 添加到桌面的全屏支持 -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000000">
+
+    <title>手机桌面模拟</title>
+    <style>
+        /* CSS reset & 全屏基础样式，去除所有白边 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            /* 禁止选中文字和默认长按菜单，提升原生App体验 */
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* 防止页面滚动 */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #000;
+        }
+        
+        /* 桌面的样式 */
+        #desktop {
+            width: 100%;
+            height: 100%;
+            /* 默认壁纸颜色 */
+            background-color: #3b82f6; 
+            /* 默认壁纸图片（网络图片） */
+            background-image: url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1080&auto=format&fit=crop'); 
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            position: relative;
+            transition: background-image 0.3s ease;
+        }
+
+        /* 应用图标网格布局 */
+        #app-grid {
+            /* 适配刘海屏和状态栏，顶部增加内边距 */
+            padding: env(safe-area-inset-top, 40px) 20px 20px 20px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px 10px;
+        }
+
+        .app-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .app-icon-img {
+            width: 60px;
+            height: 60px;
+            background-color: #f3f4f6;
+            border-radius: 14px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-size: 32px;
+        }
+
+        .app-icon-text {
+            color: white;
+            font-size: 12px;
+            margin-top: 6px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+            font-weight: 500;
+        }
+
+        /* 设置应用界面的样式 */
+        #settings-window {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #f3f4f6;
+            display: none; /* 默认隐藏 */
+            flex-direction: column;
+            z-index: 100;
+            animation: slideIn 0.25s forwards;
+        }
+
+        /* 打开设置时的动画 */
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        /* 设置界面头部（包含返回按钮） */
+        .settings-header {
+            padding-top: env(safe-area-inset-top, 40px);
+            padding-bottom: 15px;
+            padding-left: 20px;
+            padding-right: 20px;
+            background-color: #ffffff;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #e5e7eb;
+            position: relative;
+        }
+
+        .back-btn {
+            color: #007aff;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .settings-title {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: #000;
+        }
+
+        /* 设置界面的内容区 */
+        .settings-content {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .setting-item {
+            background-color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        }
+
+        .setting-item span:first-child {
+            color: #000;
+        }
+
+        .setting-item span:last-child {
+            color: #9ca3af;
+            font-size: 20px;
+        }
+        
+        /* 隐藏真实的 input 按钮，通过 label 的 for 属性来触发它 */
+        #wallpaper-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 桌面容器 -->
+    <div id="desktop">
+        <div id="app-grid">
+            <!-- 设置应用图标 -->
+            <div class="app-icon" id="open-settings">
+                <div class="app-icon-img">⚙️</div>
+                <div class="app-icon-text">设置</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置应用界面 -->
+    <div id="settings-window">
+        <!-- 头部导航 -->
+        <div class="settings-header">
+            <div class="back-btn" id="close-settings">‹ 返回</div>
+            <div class="settings-title">设置</div>
+        </div>
+        <!-- 内容列表 -->
+        <div class="settings-content">
+            <!-- 点击此项会触发下面隐藏的 input file -->
+            <label class="setting-item" for="wallpaper-input">
+                <span>更换桌面壁纸</span>
+                <span>›</span>
+            </label>
+            <!-- 接受所有图片类型的本机文件选择器 -->
+            <input type="file" id="wallpaper-input" accept="image/*">
+        </div>
+    </div>
+
+    <script>
+        // 获取相关元素
+        const desktop = document.getElementById('desktop');
+        const openSettingsBtn = document.getElementById('open-settings');
+        const closeSettingsBtn = document.getElementById('close-settings');
+        const settingsWindow = document.getElementById('settings-window');
+        const wallpaperInput = document.getElementById('wallpaper-input');
+
+        // 在应用启动时，检查是否已经保存过自定义壁纸
+        const savedWallpaper = localStorage.getItem('customWallpaper');
+        if (savedWallpaper) {
+            desktop.style.backgroundImage = `url(${savedWallpaper})`;
+        }
+
+        // 点击桌面“设置”图标，打开设置界面
+        openSettingsBtn.addEventListener('click', () => {
+            settingsWindow.style.display = 'flex';
+        });
+
+        // 点击设置界面“返回”，关闭设置界面
+        closeSettingsBtn.addEventListener('click', () => {
+            settingsWindow.style.display = 'none';
+        });
+
+        // 监听图片选择器，当用户选择了相册中的图片后触发
+        wallpaperInput.addEventListener('change', function(event) {
+            // 获取用户选择的文件
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // 使用 FileReader 将图片文件转换为浏览器可以识别的 URL 数据
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const imageUrl = e.target.result;
+                // 将获取到的图片 URL 设置为桌面的背景图片
+                desktop.style.backgroundImage = `url(${imageUrl})`;
+                
+                // 将图片数据保存到本地浏览器缓存中，这样下次打开网页依然生效
+                try {
+                    localStorage.setItem('customWallpaper', imageUrl);
+                } catch (err) {
+                    // 如果选择的图片过大，可能超出了 localStorage 的限制 (通常为 5MB)
+                    console.warn("图片过大，无法保存到本地缓存", err);
+                    alert("壁纸已更换！(但图片文件较大，如果完全关闭网页下次打开可能需要重新设置)");
+                }
+            };
+            
+            // 读取文件数据
+            reader.readAsDataURL(file);
+        });
+    </script>
+</body>
+</html>
