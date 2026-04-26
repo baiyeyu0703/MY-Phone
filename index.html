@@ -2,260 +2,1069 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <!-- 核心设置：完全适配原生手机屏幕尺寸，允许全屏，去除缩放 -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
-    <!-- 针对 iOS Safari 添加到桌面的全屏支持 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, shrink-to-fit=no">
+    <!-- iOS Safari 添加到主屏幕后全屏 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="手机模拟">
-    
-    <!-- 针对 Android Chrome 添加到桌面的全屏支持 -->
+    <meta name="apple-mobile-web-app-title" content="手机桌面">
+    <!-- Android Chrome 主题色 -->
+    <meta name="theme-color" content="#0a0a0a">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#000000">
-
-    <title>手机桌面模拟</title>
+    <title>手机桌面</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        /* CSS reset & 全屏基础样式，去除所有白边 */
-        * {
+        /* ====== 全局重置 ====== */
+        *,
+        *::before,
+        *::after {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            /* 禁止选中文字和默认长按菜单，提升原生App体验 */
-            user-select: none;
-            -webkit-user-select: none;
-            -webkit-touch-callout: none;
         }
 
-        body, html {
-            width: 100%;
-            height: 100%;
-            overflow: hidden; /* 防止页面滚动 */
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #000;
+        :root {
+            --icon-size: 60px;
+            --icon-gap: 24px;
+            --dock-bg: rgba(255, 255, 255, 0.15);
+            --modal-bg: #1a1a1a;
+            --modal-card: #2a2a2a;
+            --accent: #E8A838;
+            --accent-dim: rgba(232, 168, 56, 0.15);
+            --text-primary: #f0f0f0;
+            --text-secondary: #999;
+            --divider: rgba(255, 255, 255, 0.08);
+            /* 动态视口高度变量 */
+            --dvh: 1dvh;
         }
-        
-        /* 桌面的样式 */
-        #desktop {
+
+        html {
             width: 100%;
             height: 100%;
-            /* 默认壁纸颜色 */
-            background-color: #3b82f6; 
-            /* 默认壁纸图片（网络图片） */
-            background-image: url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1080&auto=format&fit=crop'); 
+            /* 使用 -webkit-fill-available 兼容 iOS Safari */
+            height: -webkit-fill-available;
+            overflow: hidden;
+            background: #0a0a0a;
+        }
+
+        body {
+            width: 100%;
+            height: 100%;
+            height: -webkit-fill-available;
+            /* 使用动态视口高度，100dvh 在支持它的浏览器中更准确 */
+            height: calc(var(--dvh, 1dvh) * 100);
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+            overflow: hidden;
+            font-family: -apple-system, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+            background: #0a0a0a;
+            /* 防止iOS橡皮筋效果导致的白底 */
+            position: fixed;
+            inset: 0;
+        }
+
+        /* ====== 桌面容器 ====== */
+        #desktop {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            height: -webkit-fill-available;
+            height: calc(var(--dvh, 1dvh) * 100);
+            background-color: #0a0a0a;
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            transition: background-image 0.5s ease;
+            /* 确保内容不被安全区域遮挡的同时背景图覆盖整个区域 */
+            background-origin: border-box;
+        }
+
+        /* 壁纸上的柔和遮罩，让图标更清晰 */
+        #desktop::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at 50% 80%, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.4) 100%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ====== 图标网格区域 ====== */
+        .icon-grid {
             position: relative;
-            transition: background-image 0.3s ease;
+            z-index: 1;
+            flex: 1;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: var(--icon-gap);
+            padding: 40px 20px;
         }
 
-        /* 应用图标网格布局 */
-        #app-grid {
-            /* 适配刘海屏和状态栏，顶部增加内边距 */
-            padding: env(safe-area-inset-top, 40px) 20px 20px 20px;
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px 10px;
-        }
-
+        /* ====== 单个图标 ====== */
         .app-icon {
             display: flex;
             flex-direction: column;
             align-items: center;
+            gap: 8px;
             cursor: pointer;
+            transition: transform 0.15s ease;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        .app-icon-img {
-            width: 60px;
-            height: 60px;
-            background-color: #f3f4f6;
-            border-radius: 14px;
+        .app-icon:active {
+            transform: scale(0.88);
+        }
+
+        .app-icon .icon-box {
+            width: var(--icon-size);
+            height: var(--icon-size);
+            border-radius: 16px;
             display: flex;
+            align-items: center;
             justify-content: center;
-            align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            font-size: 32px;
-        }
-
-        .app-icon-text {
-            color: white;
-            font-size: 12px;
-            margin-top: 6px;
-            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-            font-weight: 500;
-        }
-
-        /* 设置应用界面的样式 */
-        #settings-window {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #f3f4f6;
-            display: none; /* 默认隐藏 */
-            flex-direction: column;
-            z-index: 100;
-            animation: slideIn 0.25s forwards;
-        }
-
-        /* 打开设置时的动画 */
-        @keyframes slideIn {
-            from { transform: translateX(100%); }
-            to { transform: translateX(0); }
-        }
-
-        /* 设置界面头部（包含返回按钮） */
-        .settings-header {
-            padding-top: env(safe-area-inset-top, 40px);
-            padding-bottom: 15px;
-            padding-left: 20px;
-            padding-right: 20px;
-            background-color: #ffffff;
-            display: flex;
-            align-items: center;
-            border-bottom: 1px solid #e5e7eb;
+            font-size: 28px;
+            color: #fff;
             position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
         }
 
-        .back-btn {
-            color: #007aff;
-            font-size: 16px;
-            cursor: pointer;
-            z-index: 10;
+        /* 设置图标特殊渐变 */
+        .app-icon .icon-box.settings-icon {
+            background: linear-gradient(145deg, #4a4a4a, #2a2a2a);
+        }
+
+        .app-icon .icon-label {
+            font-size: 12px;
+            color: #fff;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+            letter-spacing: 0.3px;
+            max-width: 80px;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ====== 设置页面（全屏覆盖） ====== */
+        .settings-page {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            background: var(--modal-bg);
+            transform: translateY(100%);
+            transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        .settings-page.open {
+            transform: translateY(0);
+        }
+
+        /* 设置页顶栏 */
+        .settings-header {
             display: flex;
             align-items: center;
-            gap: 4px;
+            padding: 16px 20px;
+            gap: 14px;
+            flex-shrink: 0;
+        }
+
+        .settings-back {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--accent);
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .settings-back:active {
+            background: rgba(255, 255, 255, 0.2);
         }
 
         .settings-title {
-            position: absolute;
-            left: 0;
-            width: 100%;
-            text-align: center;
-            font-size: 18px;
-            font-weight: 600;
-            color: #000;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 0.5px;
         }
 
-        /* 设置界面的内容区 */
-        .settings-content {
-            padding: 20px;
+        /* 设置内容区 */
+        .settings-body {
             flex: 1;
             overflow-y: auto;
+            padding: 8px 20px 40px;
+            -webkit-overflow-scrolling: touch;
         }
 
-        .setting-item {
-            background-color: white;
-            padding: 15px 20px;
-            border-radius: 12px;
+        .settings-body::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* 设置分组 */
+        .settings-group {
+            margin-bottom: 24px;
+        }
+
+        .settings-group-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            padding-left: 4px;
+        }
+
+        .settings-card {
+            background: var(--modal-card);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        /* 设置行 */
+        .settings-row {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            font-size: 16px;
+            padding: 16px 18px;
+            gap: 14px;
             cursor: pointer;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+            transition: background 0.15s;
+            -webkit-tap-highlight-color: transparent;
+            position: relative;
         }
 
-        .setting-item span:first-child {
-            color: #000;
+        .settings-row:active {
+            background: rgba(255, 255, 255, 0.05);
         }
 
-        .setting-item span:last-child {
-            color: #9ca3af;
+        .settings-row+.settings-row {
+            border-top: 1px solid var(--divider);
+        }
+
+        .settings-row .row-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .row-icon.wallpaper-icon {
+            background: linear-gradient(135deg, #E8A838, #D4782F);
+            color: #fff;
+        }
+
+        .row-icon.default-icon {
+            background: linear-gradient(135deg, #5C6BC0, #3949AB);
+            color: #fff;
+        }
+
+        .row-icon.fullscreen-icon {
+            background: linear-gradient(135deg, #43A047, #2E7D32);
+            color: #fff;
+        }
+
+        .settings-row .row-text {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .row-text .row-title {
+            font-size: 16px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .row-text .row-subtitle {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .settings-row .row-arrow {
+            color: var(--text-secondary);
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        /* 全屏状态指示 */
+        .fullscreen-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #43A047;
+            margin-left: 6px;
+            flex-shrink: 0;
+        }
+
+        .fullscreen-indicator.inactive {
+            background: #666;
+        }
+
+        /* 壁纸预览 */
+        .wallpaper-preview {
+            width: 100%;
+            aspect-ratio: 9 / 16;
+            max-height: 260px;
+            border-radius: 16px;
+            background: var(--modal-card);
+            overflow: hidden;
+            margin-bottom: 24px;
+            position: relative;
+            border: 2px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .wallpaper-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .wallpaper-preview .no-wallpaper {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: var(--text-secondary);
+        }
+
+        .no-wallpaper i {
+            font-size: 32px;
+            opacity: 0.4;
+        }
+
+        .no-wallpaper span {
+            font-size: 13px;
+        }
+
+        /* 隐藏的文件选择器 */
+        #wallpaperInput {
+            display: none;
+        }
+
+        /* 选择按钮 */
+        .upload-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 16px;
+            border: 2px dashed rgba(232, 168, 56, 0.35);
+            border-radius: 14px;
+            background: var(--accent-dim);
+            color: var(--accent);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+            letter-spacing: 0.3px;
+        }
+
+        .upload-btn:active {
+            background: rgba(232, 168, 56, 0.25);
+            border-color: rgba(232, 168, 56, 0.6);
+            transform: scale(0.97);
+        }
+
+        .upload-btn i {
             font-size: 20px;
         }
-        
-        /* 隐藏真实的 input 按钮，通过 label 的 for 属性来触发它 */
-        #wallpaper-input {
-            display: none;
+
+        /* 重置壁纸按钮 */
+        .reset-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+            margin-top: 12px;
+        }
+
+        .reset-btn:active {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* ====== Toast 提示 ====== */
+        .toast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(30px);
+            background: rgba(40, 40, 40, 0.95);
+            color: var(--text-primary);
+            padding: 12px 24px;
+            border-radius: 24px;
+            font-size: 14px;
+            z-index: 200;
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            white-space: nowrap;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ====== 默认壁纸渐变 ====== */
+        .default-wallpaper {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+        }
+
+        /* 默认壁纸：流动渐变动画 */
+        .default-wallpaper-bg {
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(ellipse at 20% 50%, rgba(232, 168, 56, 0.2) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(56, 180, 160, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 90%, rgba(200, 80, 60, 0.12) 0%, transparent 50%),
+                linear-gradient(160deg, #0d0d0d 0%, #1a1510 40%, #0f1a18 70%, #0d0d0d 100%);
+            animation: wallpaperShift 12s ease-in-out infinite alternate;
+        }
+
+        @keyframes wallpaperShift {
+            0% {
+                filter: hue-rotate(0deg) brightness(1);
+            }
+            50% {
+                filter: hue-rotate(15deg) brightness(1.05);
+            }
+            100% {
+                filter: hue-rotate(-10deg) brightness(0.95);
+            }
+        }
+
+        /* 减少动画偏好 */
+        @media (prefers-reduced-motion: reduce) {
+            .default-wallpaper-bg {
+                animation: none;
+            }
+            .settings-page {
+                transition: none;
+            }
+            .app-icon:active {
+                transform: none;
+            }
+        }
+
+        /* ====== 添加到主屏幕提示横幅 ====== */
+        .pwa-hint-banner {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 90;
+            background: rgba(30, 30, 30, 0.9);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 20px;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #fff;
+            font-size: 13px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+            max-width: 90vw;
+            white-space: nowrap;
+        }
+
+        .pwa-hint-banner.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .pwa-hint-banner .hint-icon {
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+
+        .pwa-hint-banner .hint-close {
+            background: none;
+            border: none;
+            color: #999;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 4px;
+            flex-shrink: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* iOS 添加到主屏幕的分享按钮样式提示 */
+        @supports (-webkit-touch-callout: none) {
+            .pwa-hint-banner .hint-icon {
+                content: "📤";
+            }
         }
     </style>
 </head>
 <body>
 
-    <!-- 桌面容器 -->
+    <!-- 桌面 -->
     <div id="desktop">
-        <div id="app-grid">
-            <!-- 设置应用图标 -->
-            <div class="app-icon" id="open-settings">
-                <div class="app-icon-img">⚙️</div>
-                <div class="app-icon-text">设置</div>
+        <!-- 默认壁纸层 -->
+        <div class="default-wallpaper" id="defaultWallpaper">
+            <div class="default-wallpaper-bg"></div>
+        </div>
+
+        <!-- 图标网格 -->
+        <div class="icon-grid">
+            <div class="app-icon" id="settingsApp" role="button" aria-label="设置" tabindex="0">
+                <div class="icon-box settings-icon">
+                    <i class="fas fa-gear"></i>
+                </div>
+                <span class="icon-label">设置</span>
             </div>
         </div>
     </div>
 
-    <!-- 设置应用界面 -->
-    <div id="settings-window">
-        <!-- 头部导航 -->
+    <!-- PWA 添加到主屏幕提示横幅 -->
+    <div class="pwa-hint-banner" id="pwaHintBanner">
+        <span class="hint-icon">📲</span>
+        <span id="pwaHintText">将本页添加到主屏幕以获得全屏体验</span>
+        <button class="hint-close" id="pwaHintClose" aria-label="关闭提示">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <!-- 设置页面 -->
+    <div class="settings-page" id="settingsPage" role="dialog" aria-label="设置">
         <div class="settings-header">
-            <div class="back-btn" id="close-settings">‹ 返回</div>
-            <div class="settings-title">设置</div>
+            <button class="settings-back" id="settingsBack" aria-label="返回">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <span class="settings-title">设置</span>
         </div>
-        <!-- 内容列表 -->
-        <div class="settings-content">
-            <!-- 点击此项会触发下面隐藏的 input file -->
-            <label class="setting-item" for="wallpaper-input">
-                <span>更换桌面壁纸</span>
-                <span>›</span>
+
+        <div class="settings-body">
+            <!-- 壁纸预览 -->
+            <div class="wallpaper-preview" id="wallpaperPreview">
+                <div class="no-wallpaper" id="noWallpaperHint">
+                    <i class="fas fa-image"></i>
+                    <span>当前使用默认壁纸</span>
+                </div>
+            </div>
+
+            <!-- 壁纸设置 -->
+            <div class="settings-group">
+                <div class="settings-group-title">壁纸</div>
+                <div class="settings-card">
+                    <div class="settings-row" id="uploadRow" role="button" tabindex="0" aria-label="从相册选择壁纸">
+                        <div class="row-icon wallpaper-icon">
+                            <i class="fas fa-images"></i>
+                        </div>
+                        <div class="row-text">
+                            <span class="row-title">从相册选择</span>
+                            <span class="row-subtitle">选取照片作为桌面壁纸</span>
+                        </div>
+                        <i class="fas fa-chevron-right row-arrow"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 上传按钮 -->
+            <label class="upload-btn" for="wallpaperInput">
+                <i class="fas fa-arrow-up-from-bracket"></i>
+                导入壁纸
             </label>
-            <!-- 接受所有图片类型的本机文件选择器 -->
-            <input type="file" id="wallpaper-input" accept="image/*">
+            <input type="file" id="wallpaperInput" accept="image/*">
+
+            <!-- 重置壁纸 -->
+            <button class="reset-btn" id="resetWallpaper" aria-label="恢复默认壁纸">
+                <i class="fas fa-rotate-left"></i>
+                恢复默认壁纸
+            </button>
+
+            <!-- 全屏设置 -->
+            <div class="settings-group" style="margin-top: 28px;">
+                <div class="settings-group-title">显示</div>
+                <div class="settings-card">
+                    <div class="settings-row" id="fullscreenRow" role="button" tabindex="0" aria-label="切换全屏模式">
+                        <div class="row-icon fullscreen-icon">
+                            <i class="fas fa-expand"></i>
+                        </div>
+                        <div class="row-text">
+                            <span class="row-title">全屏模式</span>
+                            <span class="row-subtitle" id="fullscreenStatus">点击进入全屏</span>
+                        </div>
+                        <span class="fullscreen-indicator inactive" id="fullscreenIndicator"></span>
+                        <i class="fas fa-chevron-right row-arrow"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 关于 -->
+            <div class="settings-group" style="margin-top: 28px;">
+                <div class="settings-group-title">关于</div>
+                <div class="settings-card">
+                    <div class="settings-row">
+                        <div class="row-icon default-icon">
+                            <i class="fas fa-info"></i>
+                        </div>
+                        <div class="row-text">
+                            <span class="row-title">版本</span>
+                            <span class="row-subtitle">1.0.1</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <script>
-        // 获取相关元素
-        const desktop = document.getElementById('desktop');
-        const openSettingsBtn = document.getElementById('open-settings');
-        const closeSettingsBtn = document.getElementById('close-settings');
-        const settingsWindow = document.getElementById('settings-window');
-        const wallpaperInput = document.getElementById('wallpaper-input');
+    <!-- Toast 提示 -->
+    <div class="toast" id="toast"></div>
 
-        // 在应用启动时，检查是否已经保存过自定义壁纸
-        const savedWallpaper = localStorage.getItem('customWallpaper');
-        if (savedWallpaper) {
-            desktop.style.backgroundImage = `url(${savedWallpaper})`;
+    <script>
+        // ====== DOM 元素引用 ======
+        const desktop = document.getElementById('desktop');
+        const settingsApp = document.getElementById('settingsApp');
+        const settingsPage = document.getElementById('settingsPage');
+        const settingsBack = document.getElementById('settingsBack');
+        const wallpaperInput = document.getElementById('wallpaperInput');
+        const wallpaperPreview = document.getElementById('wallpaperPreview');
+        const noWallpaperHint = document.getElementById('noWallpaperHint');
+        const uploadRow = document.getElementById('uploadRow');
+        const resetBtn = document.getElementById('resetWallpaper');
+        const defaultWallpaper = document.getElementById('defaultWallpaper');
+        const toastEl = document.getElementById('toast');
+        const fullscreenRow = document.getElementById('fullscreenRow');
+        const fullscreenStatus = document.getElementById('fullscreenStatus');
+        const fullscreenIndicator = document.getElementById('fullscreenIndicator');
+        const pwaHintBanner = document.getElementById('pwaHintBanner');
+        const pwaHintClose = document.getElementById('pwaHintClose');
+        const pwaHintText = document.getElementById('pwaHintText');
+
+        // 当前壁纸状态
+        let currentWallpaper = null;
+
+        // ====== 检测是否已全屏（PWA 模式或 Fullscreen API） ======
+        function isStandaloneMode() {
+            // iOS: 检测是否从主屏幕启动
+            const isIOSStandalone = ('standalone' in window.navigator) && window.navigator.standalone;
+            // Android: 检测 display-mode
+            const isDisplayStandalone = window.matchMedia('(display-mode: standalone)').matches;
+            // Fullscreen API
+            const isFullscreenAPI = !!(
+                document.fullscreenElement ||
+                document.webkitFullscreenElement ||
+                document.mozFullScreenElement ||
+                document.msFullscreenElement
+            );
+            return isIOSStandalone || isDisplayStandalone || isFullscreenAPI;
         }
 
-        // 点击桌面“设置”图标，打开设置界面
-        openSettingsBtn.addEventListener('click', () => {
-            settingsWindow.style.display = 'flex';
+        // ====== 更新全屏状态指示 ======
+        function updateFullscreenIndicator() {
+            if (isStandaloneMode()) {
+                fullscreenIndicator.classList.remove('inactive');
+                fullscreenStatus.textContent = '已进入全屏模式';
+                fullscreenRow.querySelector('.row-icon i').classList.remove('fa-expand');
+                fullscreenRow.querySelector('.row-icon i').classList.add('fa-compress');
+            } else {
+                fullscreenIndicator.classList.add('inactive');
+                fullscreenStatus.textContent = '点击进入全屏';
+                fullscreenRow.querySelector('.row-icon i').classList.remove('fa-compress');
+                fullscreenRow.querySelector('.row-icon i').classList.add('fa-expand');
+            }
+        }
+
+        // ====== Fullscreen API 切换 ======
+        function toggleFullscreen() {
+            const isFull = !!(
+                document.fullscreenElement ||
+                document.webkitFullscreenElement ||
+                document.mozFullScreenElement ||
+                document.msFullscreenElement
+            );
+
+            if (!isFull) {
+                // 进入全屏
+                const el = document.documentElement;
+                if (el.requestFullscreen) {
+                    el.requestFullscreen().catch(() => {
+                        showToast('全屏模式需要用户手动触发，请重试');
+                    });
+                } else if (el.webkitRequestFullscreen) {
+                    el.webkitRequestFullscreen();
+                } else if (el.mozRequestFullScreen) {
+                    el.mozRequestFullScreen();
+                } else if (el.msRequestFullscreen) {
+                    el.msRequestFullscreen();
+                } else {
+                    showToast('您的浏览器不支持全屏API，请将页面添加到主屏幕');
+                }
+            } else {
+                // 退出全屏
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+            }
+        }
+
+        // ====== 监听全屏状态变化 ======
+        function onFullscreenChange() {
+            updateFullscreenIndicator();
+            if (isStandaloneMode()) {
+                showToast('已进入全屏模式');
+            }
+        }
+
+        document.addEventListener('fullscreenchange', onFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+        document.addEventListener('mozfullscreenchange', onFullscreenChange);
+        document.addEventListener('MSFullscreenChange', onFullscreenChange);
+
+        // 全屏行点击事件
+        fullscreenRow.addEventListener('click', toggleFullscreen);
+        fullscreenRow.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleFullscreen();
+            }
         });
 
-        // 点击设置界面“返回”，关闭设置界面
-        closeSettingsBtn.addEventListener('click', () => {
-            settingsWindow.style.display = 'none';
+        // ====== PWA 提示横幅逻辑 ======
+        function shouldShowPWAHint() {
+            // 如果已经在独立模式（已添加到主屏幕），不显示
+            if (isStandaloneMode()) return false;
+            // 检查是否之前关闭过
+            try {
+                const dismissed = localStorage.getItem('pwaHintDismissed');
+                if (dismissed) return false;
+            } catch (e) {}
+            return true;
+        }
+
+        function showPWAHint() {
+            if (!shouldShowPWAHint()) return;
+            // 检测设备类型调整提示文案
+            const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            if (isIOS) {
+                pwaHintText.textContent = '点击分享按钮 → 添加到主屏幕，获得全屏体验';
+                pwaHintBanner.querySelector('.hint-icon').textContent = '📤';
+            } else {
+                pwaHintText.textContent = '点击菜单 → 添加到主屏幕，获得全屏体验';
+                pwaHintBanner.querySelector('.hint-icon').textContent = '📲';
+            }
+            // 延迟显示
+            setTimeout(() => {
+                if (shouldShowPWAHint() && !settingsPage.classList.contains('open')) {
+                    pwaHintBanner.classList.add('show');
+                }
+            }, 2500);
+        }
+
+        pwaHintClose.addEventListener('click', () => {
+            pwaHintBanner.classList.remove('show');
+            try {
+                localStorage.setItem('pwaHintDismissed', '1');
+            } catch (e) {}
         });
 
-        // 监听图片选择器，当用户选择了相册中的图片后触发
-        wallpaperInput.addEventListener('change', function(event) {
-            // 获取用户选择的文件
-            const file = event.target.files[0];
+        // 点击横幅本身也可以关闭
+        pwaHintBanner.addEventListener('click', (e) => {
+            if (e.target === pwaHintBanner) {
+                pwaHintBanner.classList.remove('show');
+                try {
+                    localStorage.setItem('pwaHintDismissed', '1');
+                } catch (e) {}
+            }
+        });
+
+        // ====== Toast 提示函数 ======
+        function showToast(message, duration = 2000) {
+            toastEl.textContent = message;
+            toastEl.classList.add('show');
+            clearTimeout(toastEl._timer);
+            toastEl._timer = setTimeout(() => {
+                toastEl.classList.remove('show');
+            }, duration);
+        }
+
+        // ====== 打开设置页面 ======
+        function openSettings() {
+            settingsPage.classList.add('open');
+            // 打开设置时隐藏 PWA 提示
+            pwaHintBanner.classList.remove('show');
+            updateFullscreenIndicator();
+        }
+
+        // ====== 关闭设置页面 ======
+        function closeSettings() {
+            settingsPage.classList.remove('open');
+            // 延迟检查是否需要重新显示 PWA 提示
+            setTimeout(() => {
+                if (shouldShowPWAHint() && !isStandaloneMode()) {
+                    pwaHintBanner.classList.add('show');
+                }
+            }, 1000);
+        }
+
+        // ====== 事件绑定：打开设置 ======
+        settingsApp.addEventListener('click', openSettings);
+        settingsApp.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openSettings();
+            }
+        });
+
+        // ====== 事件绑定：关闭设置 ======
+        settingsBack.addEventListener('click', closeSettings);
+
+        // ====== 事件绑定：点击上传行也触发文件选择 ======
+        uploadRow.addEventListener('click', () => {
+            wallpaperInput.click();
+        });
+        uploadRow.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                wallpaperInput.click();
+            }
+        });
+
+        // ====== 选择壁纸文件处理 ======
+        wallpaperInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
             if (!file) return;
 
-            // 使用 FileReader 将图片文件转换为浏览器可以识别的 URL 数据
+            // 验证文件类型
+            if (!file.type.startsWith('image/')) {
+                showToast('请选择图片文件');
+                return;
+            }
+
             const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                const imageUrl = e.target.result;
-                // 将获取到的图片 URL 设置为桌面的背景图片
-                desktop.style.backgroundImage = `url(${imageUrl})`;
-                
-                // 将图片数据保存到本地浏览器缓存中，这样下次打开网页依然生效
-                try {
-                    localStorage.setItem('customWallpaper', imageUrl);
-                } catch (err) {
-                    // 如果选择的图片过大，可能超出了 localStorage 的限制 (通常为 5MB)
-                    console.warn("图片过大，无法保存到本地缓存", err);
-                    alert("壁纸已更换！(但图片文件较大，如果完全关闭网页下次打开可能需要重新设置)");
-                }
+            reader.onload = (event) => {
+                const imageUrl = event.target.result;
+                applyWallpaper(imageUrl);
+                showToast('壁纸已更换');
             };
-            
-            // 读取文件数据
+            reader.onerror = () => {
+                showToast('读取图片失败，请重试');
+            };
             reader.readAsDataURL(file);
+
+            // 清空 input 值，允许重复选择同一文件
+            wallpaperInput.value = '';
         });
+
+        // ====== 应用壁纸 ======
+        function applyWallpaper(imageUrl) {
+            currentWallpaper = imageUrl;
+
+            // 设置桌面背景
+            desktop.style.backgroundImage = `url("${imageUrl}")`;
+
+            // 隐藏默认壁纸层
+            defaultWallpaper.style.display = 'none';
+
+            // 更新预览区
+            updatePreview(imageUrl);
+
+            // 保存到 localStorage
+            try {
+                localStorage.setItem('desktopWallpaper', imageUrl);
+            } catch (e) {
+                // 图片过大可能超出存储限制，尝试压缩提示
+                if (e.name === 'QuotaExceededError' || e.code === 22) {
+                    showToast('图片过大无法保存，建议使用较小的图片');
+                }
+            }
+        }
+
+        // ====== 更新预览区 ======
+        function updatePreview(imageUrl) {
+            // 移除旧预览图
+            const oldImg = wallpaperPreview.querySelector('img');
+            if (oldImg) oldImg.remove();
+
+            if (imageUrl) {
+                // 隐藏提示文字
+                noWallpaperHint.style.display = 'none';
+                // 创建预览图
+                const img = document.createElement('img');
+                img.src = imageUrl;
+                img.alt = '壁纸预览';
+                wallpaperPreview.appendChild(img);
+            } else {
+                // 显示提示文字
+                noWallpaperHint.style.display = 'flex';
+            }
+        }
+
+        // ====== 恢复默认壁纸 ======
+        resetBtn.addEventListener('click', () => {
+            currentWallpaper = null;
+            desktop.style.backgroundImage = '';
+            defaultWallpaper.style.display = 'block';
+            updatePreview(null);
+            showToast('已恢复默认壁纸');
+
+            // 清除存储
+            try {
+                localStorage.removeItem('desktopWallpaper');
+            } catch (e) {}
+        });
+
+        // ====== 页面加载时恢复已保存的壁纸 ======
+        function loadSavedWallpaper() {
+            try {
+                const saved = localStorage.getItem('desktopWallpaper');
+                if (saved) {
+                    applyWallpaper(saved);
+                }
+            } catch (e) {}
+        }
+
+        // ====== 初始化 ======
+        function init() {
+            loadSavedWallpaper();
+            updateFullscreenIndicator();
+
+            // 如果已经是独立模式，不显示提示
+            if (!isStandaloneMode()) {
+                showPWAHint();
+            }
+
+            // 监听 display-mode 变化（Android PWA）
+            const displayModeQuery = window.matchMedia('(display-mode: standalone)');
+            displayModeQuery.addEventListener('change', (e) => {
+                updateFullscreenIndicator();
+                if (e.matches) {
+                    pwaHintBanner.classList.remove('show');
+                    showToast('已进入全屏模式');
+                }
+            });
+        }
+
+        init();
+
+        // ====== 触摸滑动关闭设置页面（下拉关闭） ======
+        let touchStartY = 0;
+        let touchCurrentY = 0;
+        let isSwiping = false;
+
+        settingsPage.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            touchStartY = touch.clientY;
+            isSwiping = false;
+        }, { passive: true });
+
+        settingsPage.addEventListener('touchmove', (e) => {
+            const touch = e.touches[0];
+            touchCurrentY = touch.clientY;
+            const diff = touchCurrentY - touchStartY;
+
+            // 只在设置页顶部且向下拉时触发
+            if (diff > 80 && touchStartY < 80) {
+                isSwiping = true;
+            }
+        }, { passive: true });
+
+        settingsPage.addEventListener('touchend', () => {
+            if (isSwiping) {
+                closeSettings();
+            }
+            isSwiping = false;
+        }, { passive: true });
+
+        // ====== 键盘事件：ESC 关闭设置 ======
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && settingsPage.classList.contains('open')) {
+                closeSettings();
+            }
+        });
+
+        // ====== 处理 iOS Safari 视口高度变化（地址栏显示/隐藏） ======
+        function updateViewportHeight() {
+            const vh = window.innerHeight * 0.01;
+            document.documentElement.style.setProperty('--dvh', `${vh}px`);
+        }
+
+        updateViewportHeight();
+        window.addEventListener('resize', updateViewportHeight);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(updateViewportHeight, 100);
+        });
+
+        // ====== 监听来自 PWA 的 visibility change ======
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                updateFullscreenIndicator();
+                updateViewportHeight();
+            }
+        });
+
+        console.log('📱 手机桌面已就绪');
+        console.log('💡 提示：将本页添加到主屏幕可获得最佳全屏体验');
+        console.log('   iOS: 点击分享按钮 → 添加到主屏幕');
+        console.log('   Android: 点击菜单 → 添加到主屏幕');
+        console.log('   或在设置中点击"全屏模式"使用浏览器全屏API');
     </script>
 </body>
 </html>
