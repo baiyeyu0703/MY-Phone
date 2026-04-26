@@ -43,7 +43,14 @@
             /* 使用 -webkit-fill-available 兼容 iOS Safari */
             height: -webkit-fill-available;
             overflow: hidden;
-            background: #0a0a0a;
+            /* ★ 默认背景：与默认壁纸协调的深色渐变，用于填充安全区域 */
+            background: #0d0d0d;
+            background: radial-gradient(ellipse at 20% 50%, rgba(232, 168, 56, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(56, 180, 160, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 90%, rgba(200, 80, 60, 0.08) 0%, transparent 50%),
+                linear-gradient(160deg, #0d0d0d 0%, #1a1510 40%, #0f1a18 70%, #0d0d0d 100%);
+            /* 过渡效果，让壁纸切换更平滑 */
+            transition: background 0.5s ease;
         }
 
         body {
@@ -59,7 +66,8 @@
             -webkit-tap-highlight-color: transparent;
             user-select: none;
             -webkit-user-select: none;
-            background: #0a0a0a;
+            /* ★ body 背景透明，让 html 的背景透上来，同时也能被 JS 动态设置 */
+            background: transparent;
             /* 防止iOS橡皮筋效果导致的白底 */
             position: fixed;
             inset: 0;
@@ -73,7 +81,8 @@
             height: 100%;
             height: -webkit-fill-available;
             height: calc(var(--dvh, 1dvh) * 100);
-            background-color: #0a0a0a;
+            /* ★ 桌面背景默认透明，让下方的默认壁纸层和 html 背景可见 */
+            background-color: transparent;
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
@@ -82,9 +91,9 @@
             align-items: center;
             justify-content: flex-start;
             padding-top: env(safe-area-inset-top, 0px);
+            /* ★ 保留底部安全区域 padding，但桌面背景会自然延伸至此 */
             padding-bottom: env(safe-area-inset-bottom, 0px);
             transition: background-image 0.5s ease;
-            /* 确保内容不被安全区域遮挡的同时背景图覆盖整个区域 */
             background-origin: border-box;
         }
 
@@ -660,7 +669,7 @@
                         </div>
                         <div class="row-text">
                             <span class="row-title">版本</span>
-                            <span class="row-subtitle">1.0.1</span>
+                            <span class="row-subtitle">1.0.2</span>
                         </div>
                     </div>
                 </div>
@@ -693,6 +702,12 @@
 
         // 当前壁纸状态
         let currentWallpaper = null;
+
+        // ★ html 默认背景（用于恢复默认壁纸时使用）
+        const DEFAULT_HTML_BG = 'radial-gradient(ellipse at 20% 50%, rgba(232,168,56,0.15) 0%, transparent 50%), ' +
+            'radial-gradient(ellipse at 80% 20%, rgba(56,180,160,0.1) 0%, transparent 50%), ' +
+            'radial-gradient(ellipse at 50% 90%, rgba(200,80,60,0.08) 0%, transparent 50%), ' +
+            'linear-gradient(160deg, #0d0d0d 0%, #1a1510 40%, #0f1a18 70%, #0d0d0d 100%)';
 
         // ====== 检测是否已全屏（PWA 模式或 Fullscreen API） ======
         function isStandaloneMode() {
@@ -845,6 +860,33 @@
             }, duration);
         }
 
+        // ====== ★ 同步设置 html 和 body 的背景（关键修复） ======
+        function syncRootBackgrounds(imageUrl) {
+            const bgValue = `url("${imageUrl}") center / cover no-repeat`;
+            // 设置 html 背景 —— 填充安全区域（Home Indicator 区域）
+            document.documentElement.style.background = bgValue;
+            // 设置 body 背景 —— 作为中间层保障
+            document.body.style.background = bgValue;
+            // 调整 theme-color 以匹配（让状态栏融合）
+            const themeMeta = document.querySelector('meta[name="theme-color"]');
+            if (themeMeta) {
+                themeMeta.setAttribute('content', '#0a0a0a');
+            }
+        }
+
+        // ====== ★ 恢复 html 和 body 的默认背景 ======
+        function resetRootBackgrounds() {
+            // 恢复 html 的默认深色渐变
+            document.documentElement.style.background = DEFAULT_HTML_BG;
+            // 恢复 body 为透明，让 html 背景透上来
+            document.body.style.background = 'transparent';
+            // 恢复 theme-color
+            const themeMeta = document.querySelector('meta[name="theme-color"]');
+            if (themeMeta) {
+                themeMeta.setAttribute('content', '#0a0a0a');
+            }
+        }
+
         // ====== 打开设置页面 ======
         function openSettings() {
             settingsPage.classList.add('open');
@@ -919,9 +961,14 @@
 
             // 设置桌面背景
             desktop.style.backgroundImage = `url("${imageUrl}")`;
+            // ★ 确保桌面背景色透明，让壁纸正确显示
+            desktop.style.backgroundColor = 'transparent';
 
             // 隐藏默认壁纸层
             defaultWallpaper.style.display = 'none';
+
+            // ★ 同步设置 html 和 body 背景，填充安全区域
+            syncRootBackgrounds(imageUrl);
 
             // 更新预览区
             updatePreview(imageUrl);
@@ -960,9 +1007,15 @@
         // ====== 恢复默认壁纸 ======
         resetBtn.addEventListener('click', () => {
             currentWallpaper = null;
+            // 清除桌面背景图
             desktop.style.backgroundImage = '';
+            // ★ 恢复桌面背景色为透明，让默认壁纸层可见
+            desktop.style.backgroundColor = 'transparent';
+            // 显示默认壁纸层
             defaultWallpaper.style.display = 'block';
             updatePreview(null);
+            // ★ 恢复 html 和 body 的默认背景
+            resetRootBackgrounds();
             showToast('已恢复默认壁纸');
 
             // 清除存储
@@ -977,8 +1030,18 @@
                 const saved = localStorage.getItem('desktopWallpaper');
                 if (saved) {
                     applyWallpaper(saved);
+                } else {
+                    // ★ 确保默认状态下背景正确
+                    resetRootBackgrounds();
+                    desktop.style.backgroundColor = 'transparent';
+                    defaultWallpaper.style.display = 'block';
                 }
-            } catch (e) {}
+            } catch (e) {
+                // 加载失败时也确保默认背景
+                resetRootBackgrounds();
+                desktop.style.backgroundColor = 'transparent';
+                defaultWallpaper.style.display = 'block';
+            }
         }
 
         // ====== 初始化 ======
